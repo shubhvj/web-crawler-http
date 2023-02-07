@@ -1,7 +1,24 @@
 const { JSDOM } = require("jsdom");
 
 const crawlPage = async (baseURL, currentURL, pages) => {
+  if (new URL(baseURL).hostname !== new URL(currentURL).hostname) {
+    return pages;
+  }
+
+  const normalizedCurrentURL = normalizeURL(currentURL);
+  // if we've already visited this page
+  // just increase the count and don't repeat
+  // the http request
+  if (pages[normalizedCurrentURL] > 0) {
+    pages[normalizedCurrentURL]++;
+    return pages;
+  }
+
+  // initialize this page in the map
+  // since it doesn't exist yet
+  pages[normalizedCurrentURL] = 1;
   console.log(`actively crawling: ${currentURL}`);
+  let body;
   try {
     const res = await fetch(currentURL);
 
@@ -9,20 +26,28 @@ const crawlPage = async (baseURL, currentURL, pages) => {
       console.log(
         `error in fetch with status code: ${res.status}, on page: ${currentURL}`
       );
-      return [];
+      return pages;
     }
 
-    const contentType = res.headers.get("content-type");
+    const contentType = res.headers.get("Content-type");
     if (!contentType.includes("text/html")) {
-      console.log(`non html response: ${contentType}, on page: ${currentURL}`);
-      return [];
+      console.log(
+        `Received non html response: ${contentType}, on page: ${currentURL}`
+      );
+      return pages;
     }
-    const body = await res.text();
-    const urls = getUrlsFromHtml(body, currentURL);
-    console.log(urls);
+    body = await res.text();
   } catch (err) {
-    console.log(`error in fetch: ${err.message}, on page: ${currentURL}`);
+    console.log(
+      `error in fetch: ${err.message}, on page: ${currentURL}, base URL: ${baseURL}`
+    );
   }
+  const nextURLs = getUrlsFromHtml(body, currentURL);
+
+  for (const nextURL of nextURLs) {
+    pages = await crawlPage(baseURL, nextURL, pages);
+  }
+  return pages;
 };
 
 const normalizeURL = (url) => {
@@ -43,7 +68,7 @@ const getUrlsFromHtml = (htmlBody, baseURL) => {
   for (const link of links) {
     if (link.href.startsWith("/")) {
       try {
-        const urlObj = new URL(`${baseURL}${link.href}`);
+        const urlObj = new URL(link.href, baseURL);
         urls.push(urlObj.href);
       } catch (err) {
         console.log(`error with relative url: ${err.message}`);
