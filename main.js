@@ -1,1 +1,16 @@
-console.log("hello")
+const { crawlPage } = require("./crawl");
+
+function main() {
+  if (process.argv.length != 3) {
+    console.log("Invalid number of arguments provided");
+    process.exit(1);
+  } else {
+    const arguments = process.argv;
+    const baseURL = process.argv[2];
+    console.log(`starting crawling of: ${baseURL}`);
+    const pages = [];
+    crawlPage(baseURL, "", pages);
+  }
+}
+
+main();
